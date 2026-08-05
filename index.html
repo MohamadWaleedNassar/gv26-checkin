@@ -24,13 +24,16 @@
     overflow-x: hidden;
   }
 
-  .header {
-    text-align: center;
-    padding: 22px 16px 10px 16px;
-  }
+  .header { text-align: center; padding: 22px 16px 10px 16px; position: relative; }
   .header img { height: 46px; margin-bottom: 10px; }
   .header h1 { margin: 0; font-size: 17px; font-weight: bold; letter-spacing: 0.5px; }
   .header p { margin: 4px 0 0 0; font-size: 12.5px; color: #b9c0d6; }
+  .settings-gear {
+    position: absolute; top: 14px; right: 14px;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(255,255,255,0.08); border: none; color: #cfd5e6;
+    font-size: 16px; display: flex; align-items: center; justify-content: center;
+  }
 
   /* --- Setup panel (first-run: paste web app URL) --- */
   #setupPanel {
@@ -224,15 +227,16 @@
 <body>
 
 <div class="header">
+  <button class="settings-gear" onclick="toggleSetup()" title="Backend settings">⚙️</button>
   <img src="https://lh3.googleusercontent.com/d/13INwXSMxxHs7aoLkM_mwPMOvFwLWfFD1=w300" alt="Global Village 26">
   <h1>Gate Check-In</h1>
   <p>Tap the box below to scan a ticket's QR code</p>
 </div>
 
 <div id="setupPanel">
-  <p><strong>One-time setup:</strong> paste your Apps Script Web App URL below (Sheet → Global Village 2026 menu → "Get Gate Check-In Link"). It's saved on this device only.</p>
+  <p>Backend URL (only change this if you created a brand new Apps Script deployment — a "New version" on the existing one keeps the same URL and doesn't need this):</p>
   <input id="scriptUrlInput" type="text" placeholder="https://script.google.com/macros/s/.../exec">
-  <button onclick="saveScriptUrl()">Save & Continue</button>
+  <button onclick="saveScriptUrl()">Save</button>
 </div>
 
 <div class="scan-zone">
@@ -272,19 +276,22 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
+  // Your Apps Script Web App URL is baked in here — no setup step needed.
+  // If you ever create a brand new deployment (not just "New version" on
+  // the existing one), update this constant to the new URL.
+  const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx8W-0GTOFsVI7mEc6q1YTQXg_NrvUT7yxF0Zd6-dcOBX2whgmASmXMNKQ9gyvwiBPK7A/exec";
   const STORAGE_KEY = 'gv26_checkin_script_url';
-  let SCRIPT_URL = localStorage.getItem(STORAGE_KEY) || '';
+  let SCRIPT_URL = localStorage.getItem(STORAGE_KEY) || DEFAULT_SCRIPT_URL;
 
   let sessionCount = 0;
   let scanner = null;
   let cameraStarted = false;
   let processing = false;
 
-  // ---------- setup panel ----------
-  function ensureSetup() {
-    if (!SCRIPT_URL) {
-      document.getElementById('setupPanel').classList.add('show');
-    }
+  function toggleSetup() {
+    const panel = document.getElementById('setupPanel');
+    document.getElementById('scriptUrlInput').value = SCRIPT_URL;
+    panel.classList.toggle('show');
   }
   function saveScriptUrl() {
     const val = document.getElementById('scriptUrlInput').value.trim();
@@ -487,7 +494,6 @@
 
   window.onload = function () {
     updateStats();
-    ensureSetup();
   };
 </script>
 
