@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Global Village 26 — Gate Check-In</title>
+<style>
+  :root {
+    --navy: #182645;
+    --maroon: #ab3356;
+    --gold: #d98842;
+    --blue: #28559f;
+    --green: #1e7a3d;
+    --amber: #b8860b;
+    --red: #ab1f1f;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    background: linear-gradient(180deg, var(--navy) 0%, #10182e 100%);
+    color: #fff;
+    overflow-x: hidden;
+  }
+
+  .header {
+    text-align: center;
+    padding: 22px 16px 10px 16px;
+  }
+  .header img { height: 46px; margin-bottom: 10px; }
+  .header h1 { margin: 0; font-size: 17px; font-weight: bold; letter-spacing: 0.5px; }
+  .header p { margin: 4px 0 0 0; font-size: 12.5px; color: #b9c0d6; }
+
+  /* --- Setup panel (first-run: paste web app URL) --- */
+  #setupPanel {
+    display: none;
+    max-width: 380px;
+    margin: 10px auto;
+    padding: 16px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+  }
+  #setupPanel.show { display: block; }
+  #setupPanel p { font-size: 12.5px; color: #cfd5e6; line-height: 18px; margin: 0 0 10px 0; }
+  #setupPanel input {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: none;
+    font-size: 13px; margin-bottom: 8px;
+  }
+  #setupPanel button {
+    width: 100%; padding: 10px; border-radius: 8px; border: none;
+    background: var(--maroon); color: #fff; font-weight: bold; font-size: 13.5px;
+  }
+
+  /* --- Big tap-to-scan rectangle --- */
+  .scan-zone {
+    position: relative;
+    max-width: 420px;
+    margin: 14px auto 0 auto;
+    padding: 0 16px;
+  }
+  .scan-box {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    border: 2px dashed rgba(255,255,255,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .scan-box:active { transform: scale(0.98); }
+  .scan-box.active { border-style: solid; border-color: var(--gold); }
+  .scan-box.flash-ok { border-color: var(--green); box-shadow: 0 0 0 6px rgba(30,122,61,0.25); }
+  .scan-box.flash-bad { border-color: var(--red); box-shadow: 0 0 0 6px rgba(171,31,31,0.25); }
+
+  .scan-prompt {
+    text-align: center;
+    color: #cfd5e6;
+    padding: 20px;
+  }
+  .scan-prompt .icon { font-size: 46px; display: block; margin-bottom: 10px; }
+  .scan-prompt .big { font-size: 16px; font-weight: bold; color: #fff; }
+  .scan-prompt .small { font-size: 12px; margin-top: 4px; }
+
+  #reader { width: 100%; height: 100%; }
+  #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+
+  /* corner brackets over the scan box for a "viewfinder" feel */
+  .corner {
+    position: absolute; width: 26px; height: 26px; border-color: var(--gold);
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  .scan-box.active .corner { opacity: 1; }
+  .corner.tl { top: 10px; left: 10px; border-top: 3px solid; border-left: 3px solid; border-radius: 6px 0 0 0; }
+  .corner.tr { top: 10px; right: 10px; border-top: 3px solid; border-right: 3px solid; border-radius: 0 6px 0 0; }
+  .corner.bl { bottom: 10px; left: 10px; border-bottom: 3px solid; border-left: 3px solid; border-radius: 0 0 0 6px; }
+  .corner.br { bottom: 10px; right: 10px; border-bottom: 3px solid; border-right: 3px solid; border-radius: 0 0 6px 0; }
+
+  .scan-line {
+    position: absolute; left: 6%; width: 88%; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0; top: 0;
+  }
+  .scan-box.active .scan-line { opacity: 1; animation: scanline 2.1s ease-in-out infinite; }
+  @keyframes scanline {
+    0% { top: 6%; }
+    50% { top: 92%; }
+    100% { top: 6%; }
+  }
+
+  .camera-note {
+    text-align: center;
+    font-size: 12px;
+    color: #9aa3bd;
+    max-width: 340px;
+    margin: 10px auto 0 auto;
+    line-height: 17px;
+    min-height: 16px;
+  }
+
+  /* --- Manual entry --- */
+  .manual-entry {
+    max-width: 420px;
+    margin: 18px auto 0 auto;
+    padding: 0 16px;
+    display: flex;
+    gap: 8px;
+  }
+  .manual-entry input {
+    flex: 1;
+    padding: 13px 14px;
+    border-radius: 10px;
+    border: none;
+    font-size: 15px;
+    text-transform: uppercase;
+  }
+  .manual-entry button {
+    padding: 13px 18px;
+    border-radius: 10px;
+    border: none;
+    background: var(--maroon);
+    color: #fff;
+    font-weight: bold;
+    font-size: 14px;
+  }
+
+  .stats {
+    text-align: center;
+    padding: 16px 16px 30px 16px;
+    font-size: 12.5px;
+    color: #8f97b3;
+  }
+
+  /* --- Result overlay --- */
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(10, 14, 28, 0.55);
+    backdrop-filter: blur(3px);
+  }
+  #overlay.show { display: flex; }
+  .result-card {
+    background: #ffffff;
+    color: var(--navy);
+    border-radius: 18px;
+    max-width: 380px;
+    width: 100%;
+    padding: 34px 26px;
+    text-align: center;
+    transform: scale(0.85) translateY(10px);
+    opacity: 0;
+    animation: popIn 0.28s cubic-bezier(.34,1.56,.64,1) forwards;
+  }
+  @keyframes popIn {
+    to { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .result-icon {
+    font-size: 58px; margin-bottom: 8px;
+    animation: iconPop 0.4s cubic-bezier(.34,1.56,.64,1) 0.05s backwards;
+  }
+  @keyframes iconPop {
+    0% { transform: scale(0); }
+    100% { transform: scale(1); }
+  }
+  .result-title { font-size: 23px; font-weight: bold; margin: 0 0 6px 0; }
+  .result-name { font-size: 18px; margin: 0 0 12px 0; font-weight: 600; }
+  .result-detail { font-size: 14px; color: #555; line-height: 20px; margin: 0 0 4px 0; }
+  .result-comment {
+    margin-top: 14px;
+    background: #fbf3e6;
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 13.5px;
+    color: #8a6d00;
+    text-align: left;
+  }
+  .continue-btn {
+    margin-top: 24px;
+    width: 100%;
+    padding: 15px;
+    border-radius: 12px;
+    border: none;
+    font-size: 15px;
+    font-weight: bold;
+    background: var(--navy);
+    color: #fff;
+  }
+
+  .ok { color: var(--green); }
+  .warn { color: var(--amber); }
+  .bad { color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="https://lh3.googleusercontent.com/d/13INwXSMxxHs7aoLkM_mwPMOvFwLWfFD1=w300" alt="Global Village 26">
+  <h1>Gate Check-In</h1>
+  <p>Tap the box below to scan a ticket's QR code</p>
+</div>
+
+<div id="setupPanel">
+  <p><strong>One-time setup:</strong> paste your Apps Script Web App URL below (Sheet → Global Village 2026 menu → "Get Gate Check-In Link"). It's saved on this device only.</p>
+  <input id="scriptUrlInput" type="text" placeholder="https://script.google.com/macros/s/.../exec">
+  <button onclick="saveScriptUrl()">Save & Continue</button>
+</div>
+
+<div class="scan-zone">
+  <div class="scan-box" id="scanBox" onclick="onBoxTap()">
+    <div id="reader"></div>
+    <div class="scan-prompt" id="scanPrompt">
+      <span class="icon">📷</span>
+      <span class="big">Tap to Scan</span>
+      <span class="small">Camera opens right here</span>
+    </div>
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <div class="scan-line"></div>
+  </div>
+  <p class="camera-note" id="cameraNote"></p>
+</div>
+
+<div class="manual-entry">
+  <input id="manualCode" type="text" placeholder="Or type ticket code, e.g. GV26-XXXXXX">
+  <button onclick="submitManual()">Check</button>
+</div>
+
+<div class="stats" id="stats">Scanned this session: 0</div>
+
+<div id="overlay">
+  <div class="result-card" id="resultCard">
+    <div class="result-icon" id="resultIcon">✅</div>
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-name" id="resultName"></div>
+    <div class="result-detail" id="resultDetail"></div>
+    <div class="result-comment" id="resultComment" style="display:none;"></div>
+    <button class="continue-btn" onclick="resumeScanning()">Scan Next</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+  const STORAGE_KEY = 'gv26_checkin_script_url';
+  let SCRIPT_URL = localStorage.getItem(STORAGE_KEY) || '';
+
+  let sessionCount = 0;
+  let scanner = null;
+  let cameraStarted = false;
+  let processing = false;
+
+  // ---------- setup panel ----------
+  function ensureSetup() {
+    if (!SCRIPT_URL) {
+      document.getElementById('setupPanel').classList.add('show');
+    }
+  }
+  function saveScriptUrl() {
+    const val = document.getElementById('scriptUrlInput').value.trim();
+    if (!val.startsWith('https://script.google.com/')) {
+      alert('That doesn\'t look like a valid Apps Script Web App URL. It should start with https://script.google.com/ and end with /exec');
+      return;
+    }
+    SCRIPT_URL = val;
+    localStorage.setItem(STORAGE_KEY, val);
+    document.getElementById('setupPanel').classList.remove('show');
+  }
+
+  // ---------- sound (synthesized, no audio file needed) ----------
+  let audioCtx = null;
+  function beep(freq, startTime, duration, gainPeak) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(gainPeak, startTime + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.02);
+  }
+  function playChime(kind) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const t0 = audioCtx.currentTime;
+      if (kind === 'ok') {
+        // bright ascending "ting-ting"
+        beep(1046.5, t0, 0.14, 0.18);         // C6
+        beep(1568.0, t0 + 0.11, 0.22, 0.16);  // G6
+      } else if (kind === 'warn') {
+        beep(740, t0, 0.16, 0.16);
+        beep(740, t0 + 0.19, 0.16, 0.14);
+      } else {
+        // low double buzz for invalid/not approved
+        beep(220, t0, 0.18, 0.18);
+        beep(180, t0 + 0.18, 0.22, 0.16);
+      }
+    } catch (e) { /* audio not critical */ }
+  }
+
+  function updateStats() {
+    document.getElementById('stats').innerText = 'Scanned this session: ' + sessionCount;
+  }
+
+  function onBoxTap() {
+    if (cameraStarted || processing) return;
+    startScanner();
+  }
+
+  function onScanSuccess(decodedText) {
+    if (processing) return;
+    processing = true;
+    if (scanner) { try { scanner.pause(true); } catch (e) {} }
+    handleCode(decodedText);
+  }
+
+  function startScanner() {
+    const prompt = document.getElementById('scanPrompt');
+    const box = document.getElementById('scanBox');
+    const note = document.getElementById('cameraNote');
+    prompt.querySelector('.big').textContent = 'Opening camera…';
+    note.textContent = '';
+
+    scanner = new Html5Qrcode("reader");
+    scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 230, height: 230 } },
+      onScanSuccess,
+      function onScanFailure() { /* per-frame noise, ignore */ }
+    ).then(function () {
+      cameraStarted = true;
+      prompt.style.display = 'none';
+      box.classList.add('active');
+    }).catch(function (err) {
+      prompt.querySelector('.big').textContent = 'Tap to Scan';
+      const msg = String(err);
+      if (msg.indexOf('NotAllowedError') !== -1 || msg.indexOf('Permission denied') !== -1) {
+        note.textContent = "Camera permission blocked — check your browser's site settings and allow Camera for this page.";
+      } else if (msg.indexOf('NotFoundError') !== -1) {
+        note.textContent = "No camera found on this device. Use manual entry below.";
+      } else {
+        note.textContent = "Couldn't open the camera. Manual entry below still works.";
+      }
+    });
+  }
+
+  function submitManual() {
+    const val = document.getElementById('manualCode').value;
+    if (!val.trim()) return;
+    if (processing) return;
+    processing = true;
+    if (scanner) { try { scanner.pause(true); } catch (e) {} }
+    handleCode(val);
+  }
+
+  // ---------- JSONP call to the Apps Script backend ----------
+  function handleCode(code) {
+    if (!SCRIPT_URL) {
+      document.getElementById('setupPanel').classList.add('show');
+      processing = false;
+      return;
+    }
+    const cbName = 'gvCallback_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    window[cbName] = function (result) {
+      cleanup();
+      showResult(result);
+    };
+    const script = document.createElement('script');
+    const url = SCRIPT_URL + (SCRIPT_URL.indexOf('?') === -1 ? '?' : '&') +
+      'callback=' + cbName + '&code=' + encodeURIComponent(code);
+    script.src = url;
+    script.onerror = function () {
+      cleanup();
+      showResult({ found: false, errorText: 'Network error reaching the sheet. Check your connection and try again.' });
+    };
+    function cleanup() {
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    document.body.appendChild(script);
+
+    // timeout safety net
+    setTimeout(function () {
+      if (window[cbName]) {
+        cleanup();
+        showResult({ found: false, errorText: 'Request timed out. Check your internet connection and try again.' });
+      }
+    }, 12000);
+  }
+
+  function flashBox(kind) {
+    const box = document.getElementById('scanBox');
+    box.classList.remove('flash-ok', 'flash-bad');
+    void box.offsetWidth; // restart animation
+    box.classList.add(kind === 'ok' ? 'flash-ok' : 'flash-bad');
+    setTimeout(function () { box.classList.remove('flash-ok', 'flash-bad'); }, 900);
+  }
+
+  function showResult(result) {
+    sessionCount++;
+    updateStats();
+
+    const icon = document.getElementById('resultIcon');
+    const title = document.getElementById('resultTitle');
+    const name = document.getElementById('resultName');
+    const detail = document.getElementById('resultDetail');
+    const commentBox = document.getElementById('resultComment');
+    commentBox.style.display = 'none';
+    commentBox.innerText = '';
+
+    if (result.errorText) {
+      icon.textContent = '⚠️'; title.textContent = 'Error'; title.className = 'result-title warn';
+      name.textContent = ''; detail.textContent = result.errorText;
+      playChime('warn'); flashBox('bad');
+
+    } else if (!result.found) {
+      icon.textContent = '❌'; title.textContent = 'INVALID TICKET'; title.className = 'result-title bad';
+      name.textContent = ''; detail.textContent = 'This code was not found in the system.';
+      playChime('bad'); flashBox('bad');
+
+    } else if (!result.valid) {
+      icon.textContent = '🚫'; title.textContent = 'NOT APPROVED'; title.className = 'result-title bad';
+      name.textContent = result.name || ''; detail.textContent = result.reason || '';
+      playChime('bad'); flashBox('bad');
+
+    } else if (result.alreadyCheckedIn) {
+      icon.textContent = '⚠️'; title.textContent = 'ALREADY CHECKED IN'; title.className = 'result-title warn';
+      name.textContent = result.name || '';
+      detail.textContent = result.checkInTime ? ('First checked in at ' + result.checkInTime) : '';
+      if (result.comment) { commentBox.style.display = 'block'; commentBox.innerText = 'Note: ' + result.comment; }
+      playChime('warn'); flashBox('bad');
+
+    } else {
+      icon.textContent = '✅'; title.textContent = 'WELCOME'; title.className = 'result-title ok';
+      name.textContent = result.name || ''; detail.textContent = 'Checked in successfully.';
+      if (result.comment) { commentBox.style.display = 'block'; commentBox.innerText = 'Note: ' + result.comment; }
+      playChime('ok'); flashBox('ok');
+    }
+
+    const card = document.getElementById('resultCard');
+    card.style.animation = 'none';
+    void card.offsetWidth;
+    card.style.animation = '';
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  function resumeScanning() {
+    document.getElementById('overlay').classList.remove('show');
+    document.getElementById('manualCode').value = '';
+    processing = false;
+    if (scanner && cameraStarted) {
+      try { scanner.resume(); } catch (e) {}
+    }
+  }
+
+  window.onload = function () {
+    updateStats();
+    ensureSetup();
+  };
+</script>
+
+</body>
+</html>
